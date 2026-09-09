@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TwitterClient } from '../src/lib/twitter-client.js';
 import { mapTweetResult, parseTweetsFromInstructions } from '../src/lib/twitter-client-utils.js';
-import { validCookies } from './twitter-client-fixtures.js';
+import { graphqlResponse, validCookies } from './twitter-client-fixtures.js';
 
 const originalFetch = global.fetch;
 
@@ -202,10 +202,7 @@ describe('TwitterClient getTweet with includeRaw option', () => {
   };
 
   it('does not include _raw by default', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTweetResponse,
-    });
+    mockFetch.mockResolvedValueOnce(graphqlResponse(mockTweetResponse));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getTweet('12345');
@@ -215,10 +212,7 @@ describe('TwitterClient getTweet with includeRaw option', () => {
   });
 
   it('includes _raw when includeRaw option is true', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTweetResponse,
-    });
+    mockFetch.mockResolvedValueOnce(graphqlResponse(mockTweetResponse));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getTweet('12345', { includeRaw: true });
@@ -275,10 +269,7 @@ describe('TwitterClient getReplies with includeRaw option', () => {
   };
 
   it('includes _raw in replies when includeRaw is true', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockRepliesResponse,
-    });
+    mockFetch.mockResolvedValueOnce(graphqlResponse(mockRepliesResponse));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getReplies('12345', { includeRaw: true });
@@ -335,10 +326,7 @@ describe('TwitterClient getThread with includeRaw option', () => {
   };
 
   it('includes _raw in thread tweets when includeRaw is true', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockThreadResponse,
-    });
+    mockFetch.mockResolvedValueOnce(graphqlResponse(mockThreadResponse));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getThread('12345', { includeRaw: true });
@@ -457,10 +445,7 @@ describe('--json-full flag behavior (without --json)', () => {
   it('includeRaw works independently without requiring other json options', async () => {
     // This tests that --json-full alone (without --json) will include _raw
     // The CLI handles output format separately, but the client should work with just includeRaw
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTweetResponse,
-    });
+    mockFetch.mockResolvedValueOnce(graphqlResponse(mockTweetResponse));
 
     const client = new TwitterClient({ cookies: validCookies });
     // Only passing includeRaw: true, simulating --json-full without --json

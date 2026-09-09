@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TwitterClient } from '../src/lib/twitter-client.js';
-import { type TwitterClientPrivate, validCookies } from './twitter-client-fixtures.js';
+import { asGraphqlResponse, type TwitterClientPrivate, validCookies } from './twitter-client-fixtures.js';
 
 const originalFetch = global.fetch;
 
@@ -122,51 +122,53 @@ describe('TwitterClient timelines includeRaw', () => {
   });
 
   it('includes _raw for likes when includeRaw is true', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: {
-          user: {
-            result: {
-              timeline: {
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            user: {
+              result: {
                 timeline: {
-                  instructions: [
-                    {
-                      entries: [
-                        {
-                          content: {
-                            itemContent: {
-                              tweet_results: {
-                                result: {
-                                  rest_id: '2',
-                                  legacy: {
-                                    full_text: 'liked',
-                                    created_at: '2024-01-01T00:00:00Z',
-                                  },
-                                  core: {
-                                    user_results: {
-                                      result: { legacy: { screen_name: 'root', name: 'Root' } },
+                  timeline: {
+                    instructions: [
+                      {
+                        entries: [
+                          {
+                            content: {
+                              itemContent: {
+                                tweet_results: {
+                                  result: {
+                                    rest_id: '2',
+                                    legacy: {
+                                      full_text: 'liked',
+                                      created_at: '2024-01-01T00:00:00Z',
                                     },
-                                  },
-                                  entities: {
-                                    hashtags: [{ text: 'like' }],
+                                    core: {
+                                      user_results: {
+                                        result: { legacy: { screen_name: 'root', name: 'Root' } },
+                                      },
+                                    },
+                                    entities: {
+                                      hashtags: [{ text: 'like' }],
+                                    },
                                   },
                                 },
                               },
                             },
                           },
-                        },
-                      ],
-                    },
-                  ],
+                        ],
+                      },
+                    ],
+                  },
                 },
               },
             },
           },
-        },
+        }),
       }),
-    });
+    );
 
     const client = new TwitterClient({ cookies: validCookies });
     const clientPrivate = client as unknown as TwitterClientPrivate;

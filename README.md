@@ -79,6 +79,10 @@ bird unbookmark https://x.com/user/status/1234567890123456789
 # Likes
 bird likes -n 5
 
+# Raw single-page capture (Likes or TweetDetail) for archive integrations
+bird capture-page likes --user-id 2917296176 --count 20 --capture-dir ./captures --request-id task-1
+bird capture-page detail --tweet-id 1234567890123456789 --capture-dir ./captures --request-id task-2
+
 # News and trending topics (AI-curated from Explore tabs)
 bird news --ai-only -n 10
 bird news --sports -n 5
@@ -193,6 +197,8 @@ Fields:
 - `bird bookmarks [-n count] [--folder-id id] [--all] [--max-pages n] [--cursor string] [--expand-root-only] [--author-chain] [--author-only] [--full-chain-only] [--include-ancestor-branches] [--include-parent] [--thread-meta] [--sort-chronological] [--json]` — list your bookmarked tweets (or a specific bookmark folder); expansion flags control thread context; `--max-pages` requires `--all` or `--cursor`.
 - `bird unbookmark <tweet-id-or-url...>` — remove one or more bookmarks by tweet ID or URL.
 - `bird likes [-n count] [--all] [--max-pages n] [--cursor string] [--json] [--json-full]` — list your liked tweets; `--max-pages` requires `--all` or `--cursor`.
+- `bird capture-page likes --user-id <id> [--count n] [--cursor string] --capture-dir <dir> --request-id <id> [--max-attempts n] [--min-delay-ms n] [--not-before iso]` — capture one raw Likes GraphQL page. `--user-id` is required (no hidden current-user lookup).
+- `bird capture-page detail --tweet-id <id> [--cursor string] --capture-dir <dir> --request-id <id> [--max-attempts n] [--min-delay-ms n] [--not-before iso]` — capture one raw TweetDetail GraphQL page.
 - `bird news [-n count] [--ai-only] [--with-tweets] [--tweets-per-item n] [--for-you] [--news-only] [--sports] [--entertainment] [--trending-only] [--json]` — fetch news and trending topics from X's Explore tabs.
 - `bird trending` — alias for `news` command.
 - `bird lists [--member-of] [-n count] [--json]` — list your lists (owned or memberships).
@@ -291,6 +297,11 @@ Environment shortcuts:
 - When using `--json` with pagination (`--all`, `--cursor`, `--max-pages`, or for `user-tweets` when `-n > 20`), output is `{ tweets, nextCursor }`.
 - `read` returns full text for Notes and Articles when present.
 - Use `--plain` for stable, script-friendly output (no emoji, no color).
+- `capture-page` writes append-only `capture-<attemptId>.json` files (unmodified decoded response body plus allowlisted quota/retry/content headers) and prints one JSON manifest to stdout. The manifest includes required `attemptCount` (GraphQL request attempts, including attempts that receive no response). Diagnostics go to stderr. Exit `0` on `ok`, `1` on `error`, `2` on `paused`. Request cookies and authorization headers are excluded from captures.
+
+### Raw page library
+
+`TwitterClient.captureLikesPage` and `TwitterClient.captureTweetDetailPage` expose the same single-page transport as `capture-page`. Optional `beforeAttempt` runs before every selected GraphQL attempt (including 404 fallbacks, POST fallback, and feature repairs). Optional `onResponse` runs after each HTTP response and before JSON parse/retry; a persistence failure aborts immediately. Query-ID discovery and optional library `getCurrentUser` lookup (when `userId` is omitted) are not selected-endpoint attempts.
 
 ### JSON Schema
 

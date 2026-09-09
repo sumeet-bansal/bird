@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TwitterClient } from '../src/lib/twitter-client.js';
-import { validCookies } from './twitter-client-fixtures.js';
+import { graphqlResponse, validCookies } from './twitter-client-fixtures.js';
 
 const originalFetch = global.fetch;
 
@@ -69,11 +69,7 @@ describe('TwitterClient pagination for thread and replies', () => {
 
   describe('getRepliesPaged', () => {
     it('returns replies from single page when no cursor in response', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => makeConversationPayload(['2', '3'], undefined, '1'),
-      });
+      mockFetch.mockResolvedValue(graphqlResponse(makeConversationPayload(['2', '3'], undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getRepliesPaged('1');
@@ -87,16 +83,8 @@ describe('TwitterClient pagination for thread and replies', () => {
     it('fetches multiple pages when cursor is present and --all is used', async () => {
       // First page returns cursor, second page does not
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['2', '3'], 'cursor-page-2', '1'),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['4', '5'], undefined, '1'),
-        });
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['2', '3'], 'cursor-page-2', '1')))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['4', '5'], undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getRepliesPaged('1', { pageDelayMs: 0 });
@@ -110,16 +98,8 @@ describe('TwitterClient pagination for thread and replies', () => {
 
     it('respects maxPages option', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['2', '3'], 'cursor-page-2', '1'),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['4', '5'], 'cursor-page-3', '1'),
-        });
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['2', '3'], 'cursor-page-2', '1')))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['4', '5'], 'cursor-page-3', '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getRepliesPaged('1', { maxPages: 2, pageDelayMs: 0 });
@@ -131,11 +111,7 @@ describe('TwitterClient pagination for thread and replies', () => {
     });
 
     it('resumes from provided cursor', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => makeConversationPayload(['4', '5'], undefined, '1'),
-      });
+      mockFetch.mockResolvedValue(graphqlResponse(makeConversationPayload(['4', '5'], undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getRepliesPaged('1', { cursor: 'resume-cursor', pageDelayMs: 0 });
@@ -150,16 +126,8 @@ describe('TwitterClient pagination for thread and replies', () => {
     it('deduplicates tweets across pages', async () => {
       // Second page returns a duplicate tweet
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['2', '3'], 'cursor-page-2', '1'),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['3', '4'], undefined, '1'), // '3' is duplicate
-        });
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['2', '3'], 'cursor-page-2', '1')))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['3', '4'], undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getRepliesPaged('1', { pageDelayMs: 0 });
@@ -171,11 +139,7 @@ describe('TwitterClient pagination for thread and replies', () => {
 
     it('returns partial results on error after first page', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['2', '3'], 'cursor-page-2', '1'),
-        })
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['2', '3'], 'cursor-page-2', '1')))
         .mockResolvedValueOnce({
           ok: false,
           status: 500,
@@ -193,21 +157,9 @@ describe('TwitterClient pagination for thread and replies', () => {
 
     it('continues pagination even when a page contains no replies', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['2'], 'cursor-page-2', '1'),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['10'], 'cursor-page-3', undefined),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['3'], undefined, '1'),
-        });
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['2'], 'cursor-page-2', '1')))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['10'], 'cursor-page-3', undefined)))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['3'], undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getRepliesPaged('1', { pageDelayMs: 0 });
@@ -221,11 +173,7 @@ describe('TwitterClient pagination for thread and replies', () => {
 
   describe('getThreadPaged', () => {
     it('returns thread tweets from single page', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => makeConversationPayload(['1', '2', '3'], undefined, undefined, '1'),
-      });
+      mockFetch.mockResolvedValue(graphqlResponse(makeConversationPayload(['1', '2', '3'], undefined, undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getThreadPaged('1');
@@ -237,16 +185,8 @@ describe('TwitterClient pagination for thread and replies', () => {
 
     it('fetches multiple pages for thread', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['1', '2'], 'cursor-page-2', undefined, '1'),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['3', '4'], undefined, undefined, '1'),
-        });
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['1', '2'], 'cursor-page-2', undefined, '1')))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['3', '4'], undefined, undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getThreadPaged('1', { pageDelayMs: 0 });
@@ -314,11 +254,7 @@ describe('TwitterClient pagination for thread and replies', () => {
         },
       };
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => payload,
-      });
+      mockFetch.mockResolvedValue(graphqlResponse(payload));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getThreadPaged('1');
@@ -385,11 +321,7 @@ describe('TwitterClient pagination for thread and replies', () => {
         },
       };
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => payload,
-      });
+      mockFetch.mockResolvedValue(graphqlResponse(payload));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getThreadPaged('1');
@@ -401,16 +333,8 @@ describe('TwitterClient pagination for thread and replies', () => {
 
     it('respects maxPages for thread', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['1', '2'], 'cursor-page-2', undefined, '1'),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => makeConversationPayload(['3', '4'], 'cursor-page-3', undefined, '1'),
-        });
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['1', '2'], 'cursor-page-2', undefined, '1')))
+        .mockResolvedValueOnce(graphqlResponse(makeConversationPayload(['3', '4'], 'cursor-page-3', undefined, '1')));
 
       const client = new TwitterClient({ cookies: validCookies });
       const result = await client.getThreadPaged('1', { maxPages: 2, pageDelayMs: 0 });

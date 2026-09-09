@@ -25,7 +25,7 @@ export function truncateErrorBody(text: string): string {
 }
 
 /** Parse missing feature flag names from an X GraphQL 336-style error message. */
-function parseMissingFeatureFlags(error: string): string[] | null {
+export function parseMissingFeatureFlags(error: string): string[] | null {
   const match = MISSING_FEATURES_REGEX.exec(error);
   if (!match?.[1]) {
     return null;

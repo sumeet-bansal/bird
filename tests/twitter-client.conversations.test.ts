@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TwitterClient } from '../src/lib/twitter-client.js';
-import { validCookies } from './twitter-client-fixtures.js';
+import { graphqlResponse, validCookies } from './twitter-client-fixtures.js';
 
 const originalFetch = global.fetch;
 
@@ -72,11 +72,7 @@ describe('TwitterClient conversation helpers', () => {
   });
 
   it('getReplies returns only replies to tweet', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => makeConversationPayload(),
-    });
+    mockFetch.mockResolvedValue(graphqlResponse(makeConversationPayload()));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getReplies('1');
@@ -96,11 +92,7 @@ describe('TwitterClient conversation helpers', () => {
       legacy.created_at = '2024-01-03T00:00:00Z';
     }
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => payload,
-    });
+    mockFetch.mockResolvedValue(graphqlResponse(payload));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getThread('2');
@@ -141,11 +133,7 @@ describe('TwitterClient conversation helpers', () => {
       },
     });
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => payload,
-    });
+    mockFetch.mockResolvedValue(graphqlResponse(payload));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getThread('1');

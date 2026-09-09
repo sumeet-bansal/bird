@@ -61,6 +61,12 @@ export class TwitterClient extends MixedTwitterClient {}
 
 export type { NewsFetchOptions, NewsItem, NewsResult } from './twitter-client-news.js';
 export type {
+  CapturedResponse,
+  CaptureManifest,
+  CaptureOperation,
+  PageResult,
+} from './twitter-client-page-request.js';
+export type {
   BookmarkMutationResult,
   CurrentUserResult,
   FollowingResult,

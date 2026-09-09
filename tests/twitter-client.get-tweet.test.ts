@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TwitterClient } from '../src/lib/twitter-client.js';
 import { mapTweetResult } from '../src/lib/twitter-client-utils.js';
-import { validCookies } from './twitter-client-fixtures.js';
+import { asGraphqlResponse, graphqlResponse, validCookies } from './twitter-client-fixtures.js';
 
 const originalFetch = global.fetch;
 
@@ -19,35 +19,37 @@ describe('TwitterClient getTweet', () => {
   });
 
   it('should return tweet data from root tweetResult', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: {
-          tweetResult: {
-            result: {
-              rest_id: '12345',
-              legacy: {
-                full_text: 'Root tweet text',
-                created_at: 'Mon Jan 01 00:00:00 +0000 2024',
-                reply_count: 1,
-                retweet_count: 2,
-                favorite_count: 3,
-              },
-              core: {
-                user_results: {
-                  result: {
-                    legacy: {
-                      screen_name: 'user',
-                      name: 'User Name',
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
+        ok: true,
+        json: async () => ({
+          data: {
+            tweetResult: {
+              result: {
+                rest_id: '12345',
+                legacy: {
+                  full_text: 'Root tweet text',
+                  created_at: 'Mon Jan 01 00:00:00 +0000 2024',
+                  reply_count: 1,
+                  retweet_count: 2,
+                  favorite_count: 3,
+                },
+                core: {
+                  user_results: {
+                    result: {
+                      legacy: {
+                        screen_name: 'user',
+                        name: 'User Name',
+                      },
                     },
                   },
                 },
               },
             },
           },
-        },
+        }),
       }),
-    });
+    );
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getTweet('12345');
@@ -59,33 +61,35 @@ describe('TwitterClient getTweet', () => {
   });
 
   it('should return tweet data found inside conversation instructions', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: {
-          threaded_conversation_with_injections_v2: {
-            instructions: [
-              {
-                entries: [
-                  {
-                    content: {
-                      itemContent: {
-                        tweet_results: {
-                          result: {
-                            rest_id: '6789',
-                            legacy: {
-                              full_text: 'Nested text',
-                              created_at: 'Mon Jan 01 00:00:00 +0000 2024',
-                              reply_count: 0,
-                              retweet_count: 0,
-                              favorite_count: 0,
-                            },
-                            core: {
-                              user_results: {
-                                result: {
-                                  legacy: {
-                                    screen_name: 'nestuser',
-                                    name: 'Nested User',
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
+        ok: true,
+        json: async () => ({
+          data: {
+            threaded_conversation_with_injections_v2: {
+              instructions: [
+                {
+                  entries: [
+                    {
+                      content: {
+                        itemContent: {
+                          tweet_results: {
+                            result: {
+                              rest_id: '6789',
+                              legacy: {
+                                full_text: 'Nested text',
+                                created_at: 'Mon Jan 01 00:00:00 +0000 2024',
+                                reply_count: 0,
+                                retweet_count: 0,
+                                favorite_count: 0,
+                              },
+                              core: {
+                                user_results: {
+                                  result: {
+                                    legacy: {
+                                      screen_name: 'nestuser',
+                                      name: 'Nested User',
+                                    },
                                   },
                                 },
                               },
@@ -94,14 +98,14 @@ describe('TwitterClient getTweet', () => {
                         },
                       },
                     },
-                  },
-                ],
-              },
-            ],
+                  ],
+                },
+              ],
+            },
           },
-        },
+        }),
       }),
-    });
+    );
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getTweet('6789');
@@ -126,58 +130,8 @@ describe('TwitterClient getTweet', () => {
   });
 
   it('should return article text when present', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: {
-          tweetResult: {
-            result: {
-              rest_id: 'article123',
-              legacy: {
-                full_text: '',
-                created_at: 'Mon Jan 01 00:00:00 +0000 2024',
-              },
-              article: {
-                article_results: {
-                  result: {
-                    title: '2025 LLM Year in Review',
-                    sections: [
-                      {
-                        items: [
-                          { text: 'Intro paragraph of the article.' },
-                          { content: { text: 'Second paragraph.' } },
-                        ],
-                      },
-                    ],
-                  },
-                },
-              },
-              core: {
-                user_results: {
-                  result: {
-                    legacy: {
-                      screen_name: 'author',
-                      name: 'Article Author',
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      }),
-    });
-
-    const client = new TwitterClient({ cookies: validCookies });
-    const result = await client.getTweet('article123');
-
-    expect(result.success).toBe(true);
-    expect(result.tweet?.text).toBe('2025 LLM Year in Review\n\nIntro paragraph of the article.\n\nSecond paragraph.');
-  });
-
-  it('should fall back to user article timeline for plain text', async () => {
-    mockFetch
-      .mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
         ok: true,
         json: async () => ({
           data: {
@@ -192,13 +146,20 @@ describe('TwitterClient getTweet', () => {
                   article_results: {
                     result: {
                       title: '2025 LLM Year in Review',
+                      sections: [
+                        {
+                          items: [
+                            { text: 'Intro paragraph of the article.' },
+                            { content: { text: 'Second paragraph.' } },
+                          ],
+                        },
+                      ],
                     },
                   },
                 },
                 core: {
                   user_results: {
                     result: {
-                      rest_id: '33836629',
                       legacy: {
                         screen_name: 'author',
                         name: 'Article Author',
@@ -210,7 +171,54 @@ describe('TwitterClient getTweet', () => {
             },
           },
         }),
-      })
+      }),
+    );
+
+    const client = new TwitterClient({ cookies: validCookies });
+    const result = await client.getTweet('article123');
+
+    expect(result.success).toBe(true);
+    expect(result.tweet?.text).toBe('2025 LLM Year in Review\n\nIntro paragraph of the article.\n\nSecond paragraph.');
+  });
+
+  it('should fall back to user article timeline for plain text', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        asGraphqlResponse({
+          ok: true,
+          json: async () => ({
+            data: {
+              tweetResult: {
+                result: {
+                  rest_id: 'article123',
+                  legacy: {
+                    full_text: '',
+                    created_at: 'Mon Jan 01 00:00:00 +0000 2024',
+                  },
+                  article: {
+                    article_results: {
+                      result: {
+                        title: '2025 LLM Year in Review',
+                      },
+                    },
+                  },
+                  core: {
+                    user_results: {
+                      result: {
+                        rest_id: '33836629',
+                        legacy: {
+                          screen_name: 'author',
+                          name: 'Article Author',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        }),
+      )
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -261,39 +269,41 @@ describe('TwitterClient getTweet', () => {
   });
 
   it('should return note tweet text when present', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: {
-          tweetResult: {
-            result: {
-              rest_id: 'note123',
-              legacy: {
-                full_text: '',
-                created_at: 'Mon Jan 01 00:00:00 +0000 2024',
-              },
-              note_tweet: {
-                note_tweet_results: {
-                  result: {
-                    text: 'Long form note content.',
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
+        ok: true,
+        json: async () => ({
+          data: {
+            tweetResult: {
+              result: {
+                rest_id: 'note123',
+                legacy: {
+                  full_text: '',
+                  created_at: 'Mon Jan 01 00:00:00 +0000 2024',
+                },
+                note_tweet: {
+                  note_tweet_results: {
+                    result: {
+                      text: 'Long form note content.',
+                    },
                   },
                 },
-              },
-              core: {
-                user_results: {
-                  result: {
-                    legacy: {
-                      screen_name: 'noter',
-                      name: 'Note Author',
+                core: {
+                  user_results: {
+                    result: {
+                      legacy: {
+                        screen_name: 'noter',
+                        name: 'Note Author',
+                      },
                     },
                   },
                 },
               },
             },
           },
-        },
+        }),
       }),
-    });
+    );
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getTweet('note123');
@@ -324,7 +334,7 @@ describe('TwitterClient getTweet', () => {
     mockFetch
       .mockResolvedValueOnce({ ok: false, status: 404, text: async () => '' })
       .mockResolvedValueOnce({ ok: false, status: 404, text: async () => '' })
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => payload });
+      .mockResolvedValueOnce(graphqlResponse(payload));
 
     const client = new TwitterClient({ cookies: validCookies });
     const result = await client.getTweet('1');

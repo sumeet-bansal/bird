@@ -20,9 +20,21 @@ export {
 } from './twitter-client.js';
 export type { HomeTimelineFetchOptions } from './twitter-client-home.js';
 export type { ExploreTab, NewsFetchOptions, NewsItem, NewsResult } from './twitter-client-news.js';
+export type {
+  BeforeAttemptDecision,
+  BeforeAttemptGate,
+  BeforeAttemptInfo,
+  CapturedResponse,
+  CaptureManifest,
+  CaptureOperation,
+  CaptureOutcome,
+  OnResponse,
+  PageResult,
+  RawPageHooks,
+} from './twitter-client-page-request.js';
 export type { SearchFetchOptions } from './twitter-client-search.js';
-export type { TimelineFetchOptions } from './twitter-client-timelines.js';
-export type { TweetFetchOptions } from './twitter-client-tweet-detail.js';
+export type { CaptureLikesPageOptions, TimelineFetchOptions } from './twitter-client-timelines.js';
+export type { CaptureTweetDetailPageOptions, TweetFetchOptions } from './twitter-client-tweet-detail.js';
 export type {
   AboutAccountProfile,
   AboutAccountResult,

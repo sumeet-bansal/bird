@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TwitterClient } from '../src/lib/twitter-client.js';
-import { type TwitterClientPrivate, validCookies } from './twitter-client-fixtures.js';
+import { asGraphqlResponse, type TwitterClientPrivate, validCookies } from './twitter-client-fixtures.js';
 
 const originalFetch = global.fetch;
 
@@ -17,37 +17,39 @@ describe('TwitterClient likes', () => {
   });
 
   it('fetches likes and parses tweet results', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: {
-          user: {
-            result: {
-              timeline: {
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            user: {
+              result: {
                 timeline: {
-                  instructions: [
-                    {
-                      entries: [
-                        {
-                          content: {
-                            itemContent: {
-                              tweet_results: {
-                                result: {
-                                  rest_id: '2',
-                                  legacy: {
-                                    full_text: 'liked',
-                                    created_at: '2024-01-01T00:00:00Z',
-                                    reply_count: 0,
-                                    retweet_count: 0,
-                                    favorite_count: 0,
-                                    conversation_id_str: '2',
-                                  },
-                                  core: {
-                                    user_results: {
-                                      result: {
-                                        rest_id: 'u2',
-                                        legacy: { screen_name: 'root', name: 'Root' },
+                  timeline: {
+                    instructions: [
+                      {
+                        entries: [
+                          {
+                            content: {
+                              itemContent: {
+                                tweet_results: {
+                                  result: {
+                                    rest_id: '2',
+                                    legacy: {
+                                      full_text: 'liked',
+                                      created_at: '2024-01-01T00:00:00Z',
+                                      reply_count: 0,
+                                      retweet_count: 0,
+                                      favorite_count: 0,
+                                      conversation_id_str: '2',
+                                    },
+                                    core: {
+                                      user_results: {
+                                        result: {
+                                          rest_id: 'u2',
+                                          legacy: { screen_name: 'root', name: 'Root' },
+                                        },
                                       },
                                     },
                                   },
@@ -55,17 +57,17 @@ describe('TwitterClient likes', () => {
                               },
                             },
                           },
-                        },
-                      ],
-                    },
-                  ],
+                        ],
+                      },
+                    ],
+                  },
                 },
               },
             },
           },
-        },
+        }),
       }),
-    });
+    );
 
     const client = new TwitterClient({ cookies: validCookies });
     const clientPrivate = client as unknown as TwitterClientPrivate;
@@ -93,7 +95,138 @@ describe('TwitterClient likes', () => {
 
   it('paginates likes when count exceeds the first page', async () => {
     mockFetch
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(
+        asGraphqlResponse({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              user: {
+                result: {
+                  timeline: {
+                    timeline: {
+                      instructions: [
+                        {
+                          entries: [
+                            {
+                              content: {
+                                itemContent: {
+                                  tweet_results: {
+                                    result: {
+                                      rest_id: '1',
+                                      legacy: {
+                                        full_text: 'liked page 1',
+                                        created_at: '2024-01-01T00:00:00Z',
+                                        reply_count: 0,
+                                        retweet_count: 0,
+                                        favorite_count: 0,
+                                        conversation_id_str: '1',
+                                      },
+                                      core: {
+                                        user_results: {
+                                          result: {
+                                            rest_id: 'u1',
+                                            legacy: { screen_name: 'root', name: 'Root' },
+                                          },
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                            {
+                              content: {
+                                cursorType: 'Bottom',
+                                value: 'cursor-1',
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        }),
+      )
+      .mockResolvedValueOnce(
+        asGraphqlResponse({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              user: {
+                result: {
+                  timeline: {
+                    timeline: {
+                      instructions: [
+                        {
+                          entries: [
+                            {
+                              content: {
+                                itemContent: {
+                                  tweet_results: {
+                                    result: {
+                                      rest_id: '2',
+                                      legacy: {
+                                        full_text: 'liked page 2',
+                                        created_at: '2024-01-02T00:00:00Z',
+                                        reply_count: 0,
+                                        retweet_count: 0,
+                                        favorite_count: 0,
+                                        conversation_id_str: '2',
+                                      },
+                                      core: {
+                                        user_results: {
+                                          result: {
+                                            rest_id: 'u2',
+                                            legacy: { screen_name: 'root', name: 'Root' },
+                                          },
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        }),
+      );
+
+    const client = new TwitterClient({ cookies: validCookies });
+    const clientPrivate = client as unknown as TwitterClientPrivate;
+    clientPrivate.getCurrentUser = async () => ({
+      success: true,
+      user: { id: '42', username: 'tester', name: 'Tester' },
+    });
+    clientPrivate.getLikesQueryIds = async () => ['test'];
+
+    const result = await client.getLikes(3);
+
+    expect(result.success).toBe(true);
+    expect(result.tweets?.map((tweet) => tweet.id)).toEqual(['1', '2']);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    const secondVars = JSON.parse(
+      new URL(mockFetch.mock.calls[1][0] as string).searchParams.get('variables') as string,
+    );
+    expect(secondVars.cursor).toBe('cursor-1');
+  });
+
+  it('respects maxPages when fetching all likes', async () => {
+    mockFetch.mockResolvedValueOnce(
+      asGraphqlResponse({
         ok: true,
         status: 200,
         json: async () => ({
@@ -147,133 +280,8 @@ describe('TwitterClient likes', () => {
             },
           },
         }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          data: {
-            user: {
-              result: {
-                timeline: {
-                  timeline: {
-                    instructions: [
-                      {
-                        entries: [
-                          {
-                            content: {
-                              itemContent: {
-                                tweet_results: {
-                                  result: {
-                                    rest_id: '2',
-                                    legacy: {
-                                      full_text: 'liked page 2',
-                                      created_at: '2024-01-02T00:00:00Z',
-                                      reply_count: 0,
-                                      retweet_count: 0,
-                                      favorite_count: 0,
-                                      conversation_id_str: '2',
-                                    },
-                                    core: {
-                                      user_results: {
-                                        result: {
-                                          rest_id: 'u2',
-                                          legacy: { screen_name: 'root', name: 'Root' },
-                                        },
-                                      },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        }),
-      });
-
-    const client = new TwitterClient({ cookies: validCookies });
-    const clientPrivate = client as unknown as TwitterClientPrivate;
-    clientPrivate.getCurrentUser = async () => ({
-      success: true,
-      user: { id: '42', username: 'tester', name: 'Tester' },
-    });
-    clientPrivate.getLikesQueryIds = async () => ['test'];
-
-    const result = await client.getLikes(3);
-
-    expect(result.success).toBe(true);
-    expect(result.tweets?.map((tweet) => tweet.id)).toEqual(['1', '2']);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-
-    const secondVars = JSON.parse(
-      new URL(mockFetch.mock.calls[1][0] as string).searchParams.get('variables') as string,
-    );
-    expect(secondVars.cursor).toBe('cursor-1');
-  });
-
-  it('respects maxPages when fetching all likes', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: {
-          user: {
-            result: {
-              timeline: {
-                timeline: {
-                  instructions: [
-                    {
-                      entries: [
-                        {
-                          content: {
-                            itemContent: {
-                              tweet_results: {
-                                result: {
-                                  rest_id: '1',
-                                  legacy: {
-                                    full_text: 'liked page 1',
-                                    created_at: '2024-01-01T00:00:00Z',
-                                    reply_count: 0,
-                                    retweet_count: 0,
-                                    favorite_count: 0,
-                                    conversation_id_str: '1',
-                                  },
-                                  core: {
-                                    user_results: {
-                                      result: {
-                                        rest_id: 'u1',
-                                        legacy: { screen_name: 'root', name: 'Root' },
-                                      },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                        {
-                          content: {
-                            cursorType: 'Bottom',
-                            value: 'cursor-1',
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          },
-        },
       }),
-    });
+    );
 
     const client = new TwitterClient({ cookies: validCookies });
     const clientPrivate = client as unknown as TwitterClientPrivate;

@@ -28,13 +28,24 @@ type TwitterClientApiPrivate = TwitterClient & {
   getBookmarkFolderQueryIds: () => Promise<string[]>;
 };
 
-const makeResponse = (overrides: Partial<ResponseLike> = {}): ResponseLike => ({
-  ok: true,
-  status: 200,
-  json: async (): Promise<unknown> => ({}),
-  text: async (): Promise<string> => '',
-  ...overrides,
-});
+const makeResponse = (overrides: Partial<ResponseLike> = {}): ResponseLike => {
+  const json = overrides.json ?? (async (): Promise<unknown> => ({}));
+  const text =
+    overrides.text ??
+    (async (): Promise<string> => {
+      try {
+        return JSON.stringify(await json());
+      } catch {
+        return '';
+      }
+    });
+  return {
+    ok: overrides.ok ?? true,
+    status: overrides.status ?? 200,
+    json,
+    text,
+  };
+};
 
 describe('TwitterClient API coverage', () => {
   const originalFetch = global.fetch;

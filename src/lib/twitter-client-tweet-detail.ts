@@ -1,7 +1,16 @@
 import { paginateCursor } from './paginate-cursor.js';
 import type { AbstractConstructor, Mixin, TwitterClientBase } from './twitter-client-base.js';
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
-import { buildArticleFeatures, buildArticleFieldToggles, buildTweetDetailFeatures } from './twitter-client-features.js';
+import { buildArticleFeatures, buildArticleFieldToggles } from './twitter-client-features.js';
+import type { PageResult, RawPageHooks } from './twitter-client-page-request.js';
+import {
+  buildTweetDetailPageFeatures,
+  buildTweetDetailPageFieldToggles,
+  buildTweetDetailPageVariables,
+  captureGraphqlPage,
+  getTweetDetailData,
+  pageResultWithoutTransport,
+} from './twitter-client-page-request.js';
 import type { GetTweetResult, GraphqlTweetResult, SearchResult, TweetData } from './twitter-client-types.js';
 import {
   extractArticleText,
@@ -28,12 +37,20 @@ export interface TweetDetailPaginationOptions extends TweetFetchOptions {
   pageDelayMs?: number;
 }
 
+/** Options for a raw single-page TweetDetail capture. */
+export interface CaptureTweetDetailPageOptions extends RawPageHooks {
+  tweetId: string;
+  cursor?: string;
+}
+
 export interface TwitterClientTweetDetailMethods {
   getTweet(tweetId: string, options?: TweetFetchOptions): Promise<GetTweetResult>;
   getReplies(tweetId: string, options?: TweetFetchOptions): Promise<SearchResult>;
   getThread(tweetId: string, options?: TweetFetchOptions): Promise<SearchResult>;
   getRepliesPaged(tweetId: string, options?: TweetDetailPaginationOptions): Promise<SearchResult>;
   getThreadPaged(tweetId: string, options?: TweetDetailPaginationOptions): Promise<SearchResult>;
+  /** Fetch one raw TweetDetail GraphQL page. Persistence (`onResponse`) runs before JSON parse/retry. */
+  captureTweetDetailPage(options: CaptureTweetDetailPageOptions): Promise<PageResult>;
 }
 
 export function withTweetDetails<TBase extends AbstractConstructor<TwitterClientBase>>(
@@ -124,6 +141,45 @@ export function withTweetDetails<TBase extends AbstractConstructor<TwitterClient
       return {};
     }
 
+    /**
+     * Raw single-page TweetDetail capture. Selected-endpoint attempts are gated
+     * by `beforeAttempt` (GET, POST fallback, query-ID fallback, and feature repair).
+     */
+    async captureTweetDetailPage(options: CaptureTweetDetailPageOptions): Promise<PageResult> {
+      if (!options.requestId) {
+        return pageResultWithoutTransport({
+          outcome: 'error',
+          error: 'requestId is required',
+          errorKind: 'invalid_request',
+        });
+      }
+      if (!options.tweetId) {
+        return pageResultWithoutTransport({
+          outcome: 'error',
+          error: 'tweetId is required',
+          errorKind: 'invalid_request',
+        });
+      }
+
+      return captureGraphqlPage({
+        transport: {
+          fetchWithTimeout: (url, init) => this.fetchWithTimeout(url, init),
+          getHeaders: () => this.getHeaders(),
+          refreshQueryIds: () => this.refreshQueryIds(),
+        },
+        operation: 'TweetDetail',
+        requestId: options.requestId,
+        getQueryIds: () => this.getTweetDetailQueryIds(),
+        buildVariables: () => buildTweetDetailPageVariables(options.tweetId, options.cursor),
+        buildFeatures: () => buildTweetDetailPageFeatures(),
+        fieldToggles: () => buildTweetDetailPageFieldToggles(),
+        allowPostFallback: true,
+        featureSetName: 'tweetDetail',
+        beforeAttempt: options.beforeAttempt,
+        onResponse: options.onResponse,
+      });
+    }
+
     private async fetchTweetDetail(
       tweetId: string,
       cursor?: string,
@@ -149,136 +205,44 @@ export function withTweetDetails<TBase extends AbstractConstructor<TwitterClient
         }
       | { success: false; error: string }
     > {
-      const variables = {
-        focalTweetId: tweetId,
-        with_rux_injections: false,
-        rankingMode: 'Relevance',
-        includePromotedContent: true,
-        withCommunity: true,
-        withQuickPromoteEligibilityTweetFields: true,
-        withBirdwatchNotes: true,
-        withVoice: true,
-        ...(cursor ? { cursor } : {}),
-      };
-
-      const features = {
-        ...buildTweetDetailFeatures(),
-        articles_preview_enabled: true,
-        articles_rest_api_enabled: true,
-        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-        creator_subscriptions_tweet_preview_api_enabled: true,
-        graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
-        view_counts_everywhere_api_enabled: true,
-        longform_notetweets_consumption_enabled: true,
-        responsive_web_twitter_article_tweet_consumption_enabled: true,
-        freedom_of_speech_not_reach_fetch_enabled: true,
-        standardized_nudges_misinfo: true,
-        tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
-        rweb_video_timestamps_enabled: true,
-      };
-
-      const fieldToggles = {
-        ...buildArticleFieldToggles(),
-        withArticleRichContentState: true,
-      };
-
-      const params = new URLSearchParams({
-        variables: JSON.stringify(variables),
-        features: JSON.stringify(features),
-        fieldToggles: JSON.stringify(fieldToggles),
+      const page = await this.captureTweetDetailPage({
+        requestId: `normalized-tweet-detail-${tweetId}`,
+        tweetId,
+        cursor,
       });
-
-      try {
-        const parseResponse = async (response: Response) => {
-          if (!response.ok) {
-            const text = await response.text();
-            return { success: false as const, error: `HTTP ${response.status}: ${text.slice(0, 200)}` };
-          }
-
-          const data = (await response.json()) as {
-            data?: {
-              tweetResult?: { result?: GraphqlTweetResult };
-              threaded_conversation_with_injections_v2?: {
-                instructions?: Array<{
-                  entries?: Array<{
-                    content?: {
-                      itemContent?: {
-                        tweet_results?: {
-                          result?: GraphqlTweetResult;
-                        };
-                      };
-                    };
-                  }>;
-                }>;
-              };
-            };
-            errors?: Array<{ message: string; code?: number }>;
-          };
-
-          if (data.errors && data.errors.length > 0) {
-            // Twitter API sometimes returns partial errors (e.g., is_translatable failures)
-            // alongside valid tweet/thread data. Only fail if nothing useful is present.
-            const hasUsableData = Boolean(
-              data.data?.tweetResult?.result ||
-                data.data?.threaded_conversation_with_injections_v2?.instructions?.length,
-            );
-            if (!hasUsableData) {
-              return { success: false as const, error: data.errors.map((e) => e.message).join(', ') };
-            }
-          }
-
-          return { success: true as const, data: data.data ?? {} };
-        };
-
-        let lastError: string | undefined;
-        let had404 = false;
-
-        const tryOnce = async () => {
-          const queryIds = await this.getTweetDetailQueryIds();
-
-          for (const queryId of queryIds) {
-            const url = `${TWITTER_API_BASE}/${queryId}/TweetDetail?${params.toString()}`;
-            const response = await this.fetchWithTimeout(url, {
-              method: 'GET',
-              headers: this.getHeaders(),
-            });
-
-            if (response.status !== 404) {
-              return await parseResponse(response);
-            }
-
-            had404 = true;
-
-            const postResponse = await this.fetchWithTimeout(`${TWITTER_API_BASE}/${queryId}/TweetDetail`, {
-              method: 'POST',
-              headers: this.getHeaders(),
-              body: JSON.stringify({ variables, features, queryId }),
-            });
-
-            if (postResponse.status !== 404) {
-              return await parseResponse(postResponse);
-            }
-
-            lastError = 'HTTP 404';
-          }
-
-          return { success: false as const, error: lastError ?? 'Unknown error fetching tweet detail' };
-        };
-
-        const firstAttempt = await tryOnce();
-        if (firstAttempt.success) {
-          return firstAttempt;
-        }
-
-        if (had404) {
-          await this.refreshQueryIds();
-          return await tryOnce();
-        }
-
-        return firstAttempt;
-      } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      if (page.outcome !== 'ok') {
+        return { success: false, error: page.error ?? 'Unknown error fetching tweet detail' };
       }
+      if (page.envelope === undefined && page.response?.status === 200) {
+        return { success: false, error: 'Invalid JSON' };
+      }
+      const envelope = page.envelope as { errors?: Array<{ message: string }> } | undefined;
+      const data = getTweetDetailData(page.envelope);
+      const hasUsableData = Boolean(
+        data.tweetResult?.result || data.threaded_conversation_with_injections_v2?.instructions?.length,
+      );
+      if (envelope?.errors && envelope.errors.length > 0 && !hasUsableData) {
+        return { success: false, error: envelope.errors.map((entry) => entry.message).join(', ') };
+      }
+      return {
+        success: true,
+        data: data as {
+          tweetResult?: { result?: GraphqlTweetResult };
+          threaded_conversation_with_injections_v2?: {
+            instructions?: Array<{
+              entries?: Array<{
+                content?: {
+                  itemContent?: {
+                    tweet_results?: {
+                      result?: GraphqlTweetResult;
+                    };
+                  };
+                };
+              }>;
+            }>;
+          };
+        },
+      };
     }
 
     /**
