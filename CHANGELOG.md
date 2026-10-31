@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1 — 2026-10-31
 
 ### Added
 - Response archive: every Twitter response is also saved under `~/.local/share/bird/archive/`, except DMs and account settings. `BIRD_ARCHIVE_DIR` moves it, or disables it with `off`.
