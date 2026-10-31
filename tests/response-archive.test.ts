@@ -81,6 +81,50 @@ describe('response archive', () => {
     logged.mockRestore();
   });
 
+  it('drops paid ads from parsed tweets but keeps them in the archive', async () => {
+    const tweet = (id: string) => ({
+      content: {
+        itemContent: {
+          tweet_results: {
+            result: {
+              __typename: 'Tweet',
+              rest_id: id,
+              legacy: { full_text: `tweet ${id}`, created_at: 'Mon Jan 06 00:00:00 +0000 2025' },
+              core: {
+                user_results: {
+                  result: { __typename: 'User', rest_id: 'u1', legacy: { screen_name: 'a', name: 'A' } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    const body = JSON.stringify({
+      data: {
+        home: {
+          home_timeline_urt: {
+            instructions: [
+              {
+                entries: [
+                  { entryId: 'tweet-1', ...tweet('1') },
+                  { entryId: 'promoted-tweet-2-abc', ...tweet('2') },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+    global.fetch = vi.fn().mockImplementation(async () => new Response(body, { status: 200 }));
+
+    const client = new TwitterClient({ cookies: validCookies });
+    const result = await client.getHomeTimeline(1);
+
+    expect(result.tweets?.map((t) => t.id)).toEqual(['1']);
+    expect(readEntry(archivedFiles(dir)[0] as string).body).toContain('promoted-tweet-2-abc');
+  });
+
   it('is off when configured off', async () => {
     vi.stubEnv('BIRD_ARCHIVE_DIR', 'off');
     await archiveResponse('https://x.com/i/api/graphql/abc/HomeTimeline', { method: 'GET' }, new Response('{}'));

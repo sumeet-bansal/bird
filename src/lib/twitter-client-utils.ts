@@ -678,6 +678,7 @@ export function parseTweetsFromInstructions(
   instructions:
     | Array<{
         entries?: Array<{
+          entryId?: string;
           content?: {
             itemContent?: {
               tweet_results?: {
@@ -727,6 +728,10 @@ export function parseTweetsFromInstructions(
 
   for (const instruction of instructions ?? []) {
     for (const entry of instruction.entries ?? []) {
+      // Paid ads; nothing downstream can tell them from organic tweets once parsed.
+      if (entry.entryId?.startsWith('promoted-')) {
+        continue;
+      }
       const results = collectTweetResultsFromEntry(entry);
       for (const result of results) {
         const mapped = mapTweetResult(result, { quoteDepth, includeRaw });
