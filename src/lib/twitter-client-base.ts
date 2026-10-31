@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { archiveResponse } from './response-archive.js';
 import { addFeatureOverrides } from './runtime-features.js';
 import { runtimeQueryIds } from './runtime-query-ids.js';
 import { type OperationName, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS } from './twitter-client-constants.js';
@@ -170,7 +171,14 @@ export abstract class TwitterClientBase {
     return Array.from(new Set([primary, 'M1jEez78PEfVfbQLvlWMvQ', '5h0kNbk3ii97rmfY6CdgAA', 'Tp1sewRU1AsZpBWhqCZicQ']));
   }
 
+  /** Every Twitter request goes through here, so every response is archived as it returns. */
   protected async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+    const response = await this.fetchOnce(url, init);
+    await archiveResponse(url, init, response);
+    return response;
+  }
+
+  private async fetchOnce(url: string, init: RequestInit): Promise<Response> {
     if (!this.timeoutMs || this.timeoutMs <= 0) {
       return fetch(url, init);
     }

@@ -303,6 +303,10 @@ Environment shortcuts:
 
 `TwitterClient.captureLikesPage` and `TwitterClient.captureTweetDetailPage` expose the same single-page transport as `capture-page`. Optional `beforeAttempt` runs before every selected GraphQL attempt (including 404 fallbacks, POST fallback, and feature repairs). Optional `onResponse` runs after each HTTP response and before JSON parse/retry; a persistence failure aborts immediately. Query-ID discovery and optional library `getCurrentUser` lookup (when `userId` is omitted) are not selected-endpoint attempts.
 
+### Response archive
+
+Every Twitter response bird receives is also saved, whichever command fetched it, as one gzip file under `~/.local/share/bird/archive/YYYY/MM/DD/`. Each file holds the time, method, URL, status, rate-limit headers, and raw body. DMs and account settings are never saved, request headers are never stored, and a failed save never fails the command. Set `BIRD_ARCHIVE_DIR` to a path to move it, or to `off` to disable it.
+
 ### JSON Schema
 
 When using `--json`, tweet objects include:
